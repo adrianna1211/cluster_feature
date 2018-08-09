@@ -14,7 +14,7 @@ def load_data(data_dir):
     return seq_data
 
 
-def sample_seq(mot_seq, st, wlen=150, hop=100):
+def sample_seq(mot_seq, st, wlen=150, hop=100, sample_rate=0, feat='all'):
     mot = []
     ns = 0  # N sequence
 
@@ -27,7 +27,16 @@ def sample_seq(mot_seq, st, wlen=150, hop=100):
         start = st
         end = start + wlen
         while end <= mot_seq_data.shape[0]:
-            mot.append(mot_seq_data[start:end, :].flatten())
+            tmp = mot_seq_data[start:end, :]
+            if feat == 'exp':
+                tmp = tmp[:, :75]
+            elif feat == 'laban':
+                tmp = tmp[3:, 75:122]
+            elif feat == 'kinetic':
+                tmp = tmp[3:, 122:]
+            if sample_rate:
+                tmp = tmp[::6, :]
+            mot.append(tmp.flatten())
             ns += 1
             start += hop
             end += hop
@@ -67,12 +76,9 @@ def normalize_complete_data(data, data_mean, data_std):
     return data_out
 
 
-def get_data(data_dir, start, seq_len, hop, norm=True, align=True):
+def get_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', sample_rate=0):
     data_type = os.path.basename(data_dir)
-    if not align:
-        alldata_dir = data_type + '_' + str(seq_len) + '_' + str(hop) + '_no_align.cpkl'
-    else:
-        alldata_dir = data_type + '_' + str(seq_len) + '_' + str(hop) + '_align.cpkl'
+    alldata_dir = data_type + '_' + str(seq_len) + '_' + str(hop) + '.cpkl'
     print('motion type:', data_type)
 
     if os.path.exists(alldata_dir):
@@ -81,32 +87,30 @@ def get_data(data_dir, start, seq_len, hop, norm=True, align=True):
     else:
         print('loading motion data...')
         motion_seq_dict = load_data(data_dir)
-        motion_seq = sample_seq(motion_seq_dict, start, seq_len, hop)
+        motion_seq = sample_seq(motion_seq_dict, start, seq_len, hop, sample_rate, feat=feat)
         # alignment 去掉每个seg第一帧的expmap的前6维
-        if align:
-            motion_seq = motion_seq[:, 6:]
         data = motion_seq
 
-        f = open(alldata_dir, 'wb')
-        pickle.dump(data, f)
-        f.close()
-        print('save data in ', alldata_dir)
+        # f = open(alldata_dir, 'wb')
+        # pickle.dump(data, f)
+        # f.close()
+        # print('save data in ', alldata_dir)
 
     if norm:
         data_mean, data_std, dim_to_ignore, dim_to_use = normalization_stats(data)
         res = normalize_complete_data(data, data_mean, data_std)
     else:
         res = data
+
+    if align:
+        res[:, :6] = [0] * 6
     print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
 
     return res
 
 
-def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True):
-    if not align:
-        alldata_dir = 'all_' + str(seq_len) + '_' + str(hop) + 'no_align.cpkl'
-    else:
-        alldata_dir = 'all_' + str(seq_len) + '_' + str(hop) + 'align.cpkl'
+def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', sample_rate=0):
+    alldata_dir = 'all_' + str(seq_len) + '_' + str(hop) + '.cpkl'
     if os.path.exists(alldata_dir):
         f = open(alldata_dir, 'rb')
         data = pickle.load(f)
@@ -115,27 +119,28 @@ def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True):
         motion_seq = list()
         for type in os.listdir(data_dir):
             type_path = os.path.join(data_dir, type)
-            motion_seq_dict = load_data(type_path)
-            motion_seq_type = sample_seq(motion_seq_dict, start, seq_len, hop)
-            if len(motion_seq) == 0:
-                motion_seq = copy.deepcopy(motion_seq_type)
-            else:
-                motion_seq = np.vstack([motion_seq, motion_seq_type])
+            if os.path.isdir(type_path):
+                motion_seq_dict = load_data(type_path)
+                motion_seq_type = sample_seq(motion_seq_dict, start, seq_len, hop, sample_rate, feat=feat)
+                if len(motion_seq) == 0:
+                    motion_seq = copy.deepcopy(motion_seq_type)
+                else:
+                    motion_seq = np.vstack([motion_seq, motion_seq_type])
 
-        if align:
-            motion_seq = motion_seq[:, 6:]
         data = motion_seq
 
-        f = open(alldata_dir, 'wb')
-        pickle.dump(data, f)
-        f.close()
-        print('save data in ', alldata_dir)
+        # f = open(alldata_dir, 'wb')
+        # pickle.dump(data, f)
+        # f.close()
+        # print('save data in ', alldata_dir)
 
     if norm:
         data_mean, data_std, dim_to_ignore, dim_to_use = normalization_stats(data)
         res = normalize_complete_data(data, data_mean, data_std)
     else:
         res = data
+    if align:
+        res = res[:, 6:]
     print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
 
     return res
