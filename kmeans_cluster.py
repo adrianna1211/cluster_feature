@@ -11,12 +11,13 @@ import os
 import data_utils as util
 
 parse = argparse.ArgumentParser()
-parse.add_argument('type', help='dataset type', type=str)
-parse.add_argument('feature', help='dataset feature:exp, kinetic or laban', type=str)
-parse.add_argument('start', help='segment start frame', type=int)
-parse.add_argument('length', help='segment len', type=int)
-parse.add_argument('hop', help='segment hop', type=int)
-parse.add_argument('sample', help='down sample or not', type=int)
+parse.add_argument('type', help='dataset type', nargs='?', default='salsa', type=str)
+parse.add_argument('feature', help='dataset feature:exp, kinetic or laban', nargs='?', default='all', type=str)
+parse.add_argument('start', help='segment start frame', nargs='?', type=int, default='1')
+parse.add_argument('length', help='segment len', nargs='?', type=int, default='30')
+parse.add_argument('hop', help='segment hop', nargs='?', type=int, default='30')
+parse.add_argument('sample', help='down sample or not', nargs='?', type=int, default='0')
+parse.add_argument('k', help='cluster number', nargs='?', type=int, default=None)
 args = parse.parse_args()
 
 # data_dir = '/mnt/mypublic/music_dance/dataset/capg/beat_tracking/motion/expmap_15/chaoxianzu'
@@ -24,6 +25,8 @@ args = parse.parse_args()
 # data_dir = '/mnt/mypublic/wuxinyue/frame/motion/exp_laban_kinetic_frame/chaoxianzu'
 
 data_root = '/mnt/mypublic/wuxinyue/frame/motion/exp_laban_kinetic_frame/'
+# data_root = '/home/wuxinyue/dataset/cluster/'
+
 data_dir = os.path.join(data_root, args.type)
 
 start = args.start
@@ -56,10 +59,14 @@ else:
 #                   random_state=1)  # For reproducibility
 
 [n, dim] = X.shape
+print('type:{},length:{},num_seg:{}'.format(args.type, args.length, n))
 # chaoxianzu
-# range_n_clusters = [15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 175, 200]
-# range_n_clusters = [30, 90, 150, 200]
-range_n_clusters = list(range(5, 10)) + list(range(10, n, 5))
+if not args.k:
+    # range_n_clusters = [15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 175, 200]
+    # range_n_clusters = [30, 90, 150, 200]
+    range_n_clusters = list(range(5, 10)) + list(range(10, min(n, 205), 5))
+else:
+    range_n_clusters = [args.k]
 # range_n_clusters = list(range(10, 500, 5))
 
 score = list()
@@ -92,7 +99,7 @@ for n_clusters in range_n_clusters:
     #     size_cluster_i = ith_cluster_silhouette_values.shape[0]
     #     y_upper = y_lower + size_cluster_i
     #
-    #     color = cm.nipy_spectral(float(i) / n_clusters)
+        # color = cm.nipy_spectral(float(i) / n_clusters)
     #     ax1.fill_betweenx(np.arange(y_lower, y_upper),
     #                       0, ith_cluster_silhouette_values,
     #                       facecolor=color, edgecolor=color, alpha=0.7)
@@ -108,7 +115,10 @@ for n_clusters in range_n_clusters:
 plt.plot(range_n_clusters, score, marker='o')
 for a, b in zip(range_n_clusters, score):
     plt.text(a, b + 0.001, '%.4f' % b, ha='center', va='bottom')
+
 plt.xlabel('number of clusters')
 plt.ylabel('silhouette score')
-plt.savefig(fig_name + '.png')
+plt.savefig('./pics/'+fig_name + '.png')
 # plt.show()
+
+np.savetxt(fig_name + '.txt', score)

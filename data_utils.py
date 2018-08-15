@@ -22,7 +22,7 @@ def sample_seq(mot_seq, st, wlen=150, hop=100, sample_rate=0, feat='all'):
     seq_keys.sort()
     # loop each action sequence, i.e. each file
     for k in seq_keys:
-        print("sample_seq: ", k)
+        # print("sample_seq: ", k)
         mot_seq_data = mot_seq[k]
         start = st
         end = start + wlen
@@ -79,13 +79,13 @@ def normalize_complete_data(data, data_mean, data_std):
 def get_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', sample_rate=0):
     data_type = os.path.basename(data_dir)
     alldata_dir = data_type + '_' + str(seq_len) + '_' + str(hop) + '.cpkl'
-    print('motion type:', data_type)
+    # print('motion type:', data_type)
 
     if os.path.exists(alldata_dir):
         f = open(alldata_dir, 'rb')
         data = pickle.load(f)
     else:
-        print('loading motion data...')
+        # print('loading motion data...')
         motion_seq_dict = load_data(data_dir)
         motion_seq = sample_seq(motion_seq_dict, start, seq_len, hop, sample_rate, feat=feat)
         # alignment 去掉每个seg第一帧的expmap的前6维
@@ -104,28 +104,34 @@ def get_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', s
 
     if align:
         res[:, :6] = [0] * 6
-    print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
+    # print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
 
     return res
 
 
-def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', sample_rate=0):
+def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all', sample_rate=0, type_label=False):
     alldata_dir = 'all_' + str(seq_len) + '_' + str(hop) + '.cpkl'
     if os.path.exists(alldata_dir):
         f = open(alldata_dir, 'rb')
         data = pickle.load(f)
     else:
-        print('loading motion data...')
+        # print('loading motion data...')
         motion_seq = list()
-        for type in os.listdir(data_dir):
+        type_name = list()
+        if type_label:
+            label = list()
+        for i, type in enumerate(os.listdir(data_dir)):
             type_path = os.path.join(data_dir, type)
+            type_name.append(type)
             if os.path.isdir(type_path):
                 motion_seq_dict = load_data(type_path)
                 motion_seq_type = sample_seq(motion_seq_dict, start, seq_len, hop, sample_rate, feat=feat)
                 if len(motion_seq) == 0:
                     motion_seq = copy.deepcopy(motion_seq_type)
+                    label = [i] * len(motion_seq_type)
                 else:
                     motion_seq = np.vstack([motion_seq, motion_seq_type])
+                    label = label + [i] * len(motion_seq_type)
 
         data = motion_seq
 
@@ -141,6 +147,8 @@ def get_all_data(data_dir, start, seq_len, hop, norm=True, align=True, feat='all
         res = data
     if align:
         res = res[:, 6:]
-    print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
-
-    return res
+    # print('motion seq num:{0}，feature dim{1}'.format(res.shape[0], res.shape[1]))
+    if type_label:
+        return res, label,type_name
+    else:
+        return res
